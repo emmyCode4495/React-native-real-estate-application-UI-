@@ -1,10 +1,10 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import Animated, { FadeInUp, interpolateColor, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import Animated, { FadeInUp, interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { brand } from '../brand';
 import { Icon, IconName } from './Icon';
-import { PressableScale } from './PressableScale';
+import { ease, outCubic } from './auth/motion';
 
 const c = brand.colors;
 export const TABS: { label: string; icon: IconName; labelW: number }[] = [
@@ -16,17 +16,26 @@ export const TABS: { label: string; icon: IconName; labelW: number }[] = [
 
 function Item({ tab, active, badge, onPress }: { tab: (typeof TABS)[number]; active: boolean; badge?: number; onPress: () => void }) {
   const a = useSharedValue(active ? 1 : 0);
+  const press = useSharedValue(0);
+  // One smooth timed ease for the pill, label and colour: no spring, so nothing overshoots or wobbles.
   useEffect(() => {
-    a.value = withSpring(active ? 1 : 0, { damping: 16, stiffness: 210 });
+    a.set(withTiming(active ? 1 : 0, { duration: 340, easing: ease }));
   }, [active, a]);
   const box = useAnimatedStyle(() => ({
     width: 50 + a.value * (tab.labelW + 6),
     backgroundColor: interpolateColor(a.value, [0, 1], ['rgba(15,74,60,0)', c.primary]),
   }));
   const label = useAnimatedStyle(() => ({ opacity: a.value, width: a.value * tab.labelW }));
+  const sink = useAnimatedStyle(() => ({ transform: [{ scale: 1 - press.value * 0.05 }] }));
   return (
-    <PressableScale scaleTo={0.92} onPress={onPress} accessibilityLabel={tab.label}>
-      <Animated.View style={[styles.item, box]}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={tab.label}
+      onPress={onPress}
+      onPressIn={() => press.set(withTiming(1, { duration: 100, easing: outCubic }))}
+      onPressOut={() => press.set(withTiming(0, { duration: 220, easing: ease }))}
+    >
+      <Animated.View style={[styles.item, box, sink]}>
         <Icon name={tab.icon} size={22} color={active ? '#FFFFFF' : c.muted} />
         <Animated.View style={[styles.labelWrap, label]}>
           <Text style={styles.label} numberOfLines={1}>
@@ -39,7 +48,7 @@ function Item({ tab, active, badge, onPress }: { tab: (typeof TABS)[number]; act
           </View>
         ) : null}
       </Animated.View>
-    </PressableScale>
+    </Pressable>
   );
 }
 
@@ -47,7 +56,7 @@ type Props = { active: number; onChange: (i: number) => void; bottom: number; sa
 
 export function TabBar({ active, onChange, bottom, savedCount }: Props) {
   return (
-    <Animated.View entering={FadeInUp.delay(700).springify().damping(16)} style={[styles.bar, { bottom }]}>
+    <Animated.View entering={FadeInUp.duration(500).delay(700).easing(outCubic)} style={[styles.bar, { bottom }]}>
       {TABS.map((t, i) => (
         <Item
           key={t.label}
